@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Multiplayer HTML Game</title>
+    <style>
+        body { background: #222; color: #fff; text-align: center; font-family: sans-serif; }
+        #gameCanvas { background: #111; border: 2px solid #555; display: block; margin: 20px auto; }
+    </style>
+</head>
+<body>
+
+    <h1>Simple Multiplayer Game</h1>
+    <p>Use arrow keys to move your player around!</p>
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+    <!-- Import Firebase SDKs (v10 Modular via CDN) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // TODO: Replace with your own Firebase project configuration credentials
+const firebaseConfig = {
+  apiKey: "AIzaSyCCby5bCZ33VDQLPRfqg3ZF6onM63Vwq5g",
+  authDomain: "jubal-game.firebaseapp.com",
+  databaseURL: "https://jubal-game-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "jubal-game",
+  storageBucket: "jubal-game.firebasestorage.app",
+  messagingSenderId: "848857854803",
+  appId: "1:848857854803:web:38c9822501c479513627a6",
+  measurementId: "G-GJZBMGC9TM"
+};
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Generate a random unique ID for this player session
+        const myId = 'player_' + Math.random().toString(36.substring(2, 9));
+        const myPosition = { x: Math.random() * 500, y: Math.random() * 300, color: '#' + Math.floor(Math.random()*16777215).toString(16) };
+
+        // Reference to this player in the database
+        const myRef = ref(db, 'players/' + myId);
+        set(myRef, myPosition);
+
+        // Clean up player from database if they close the tab
+        onDisconnect(myRef).remove();
+
+        // Listen for keyboard input
+        window.addEventListener('keydown', (e) => {
+            let speed = 10;
+            if (e.key === 'ArrowUp') myPosition.y -= speed;
+            if (e.key === 'ArrowDown') myPosition.y += speed;
+            if (e.key === 'ArrowLeft') myPosition.x -= speed;
+            if (e.key === 'ArrowRight') myPosition.x += speed;
+            
+            // Update database with new position
+            set(myRef, myPosition);
+        });
+
+        // Canvas Rendering setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Listen to ALL players in real-time
+        const allPlayersRef = ref(db, 'players');
+        onValue(allPlayersRef, (snapshot) => {
+            const players = snapshot.val() || {};
+            
+            // Clear screen
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw every connected player
+            for (let id in players) {
+                const p = players[id];
+                ctx.fillStyle = p.color || '#fff';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Label current player
+                if (id === myId) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '12px sans-serif';
+                    ctx.fillText("You", p.x - 10, p.y - 20);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
