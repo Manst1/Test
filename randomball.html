@@ -1,90 +1,205 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Simple Multiplayer HTML Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Multiplayer Game</title>
+
     <style>
-        body { background: #222; color: #fff; text-align: center; font-family: sans-serif; }
-        #gameCanvas { background: #111; border: 2px solid #555; display: block; margin: 20px auto; }
+        body {
+            background: #222;
+            color: white;
+            text-align: center;
+            font-family: sans-serif;
+        }
+
+        #gameCanvas {
+            background: #111;
+            border: 2px solid #555;
+            display: block;
+            margin: 20px auto;
+            max-width: 95%;
+        }
+
+        #status {
+            color: #aaa;
+        }
     </style>
 </head>
+
 <body>
 
     <h1>Simple Multiplayer Game</h1>
-    <p>Use arrow keys to move your player around!</p>
+    <p>Use arrow keys to move your player!</p>
+    <p id="status">Connecting to server...</p>
+
     <canvas id="gameCanvas" width="600" height="400"></canvas>
 
-    <!-- Import Firebase SDKs (v10 Modular via CDN) -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // TODO: Replace with your own Firebase project configuration credentials
-const firebaseConfig = {
-  apiKey: "AIzaSyCCby5bCZ33VDQLPRfqg3ZF6onM63Vwq5g",
-  authDomain: "jubal-game.firebaseapp.com",
-  databaseURL: "https://jubal-game-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "jubal-game",
-  storageBucket: "jubal-game.firebasestorage.app",
-  messagingSenderId: "848857854803",
-  appId: "1:848857854803:web:38c9822501c479513627a6",
-  measurementId: "G-GJZBMGC9TM"
-};
+        import { initializeApp }
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 
+        import {
+            getDatabase,
+            ref,
+            set,
+            onValue,
+            onDisconnect,
+            remove
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+
+        // FIREBASE CONFIGURATION
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "jubal-game.firebaseapp.com",
+            databaseURL: "https://jubal-game-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "jubal-game",
+            storageBucket: "jubal-game.firebasestorage.app",
+            messagingSenderId: "848857854803",
+            appId: "1:848857854803:web:38c9822501c479513627a6",
+            measurementId: "G-GJZBMGC9TM"
+        };
+
+        // CONNECT TO FIREBASE
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Generate a random unique ID for this player session
-        const myId = 'player_' + Math.random().toString(36.substring(2, 9));
-        const myPosition = { x: Math.random() * 500, y: Math.random() * 300, color: '#' + Math.floor(Math.random()*16777215).toString(16) };
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const status = document.getElementById("status");
 
-        // Reference to this player in the database
-        const myRef = ref(db, 'players/' + myId);
-        set(myRef, myPosition);
+        // CREATE PLAYER
+        const myId = "player_" + crypto.randomUUID();
 
-        // Clean up player from database if they close the tab
-        onDisconnect(myRef).remove();
+        const myPosition = {
+            x: Math.random() * 550 + 25,
+            y: Math.random() * 350 + 25,
+            color: "#" + Math.floor(Math.random() * 16777215)
+                .toString(16).padStart(6, "0")
+        };
 
-        // Listen for keyboard input
-        window.addEventListener('keydown', (e) => {
-            let speed = 10;
-            if (e.key === 'ArrowUp') myPosition.y -= speed;
-            if (e.key === 'ArrowDown') myPosition.y += speed;
-            if (e.key === 'ArrowLeft') myPosition.x -= speed;
-            if (e.key === 'ArrowRight') myPosition.x += speed;
-            
-            // Update database with new position
-            set(myRef, myPosition);
+        const myRef = ref(db, "players/" + myId);
+        const allPlayersRef = ref(db, "players");
+
+        let players = {};
+
+        // CREATE PLAYER IN DATABASE
+        async function startGame() {
+            try {
+                await onDisconnect(myRef).remove();
+                await set(myRef, myPosition);
+
+                status.textContent = "Connected! Players online: 1";
+
+            } catch (error) {
+                status.textContent = "Connection error: " + error.message;
+                console.error(error);
+            }
+        }
+
+        startGame();
+
+        // LISTEN FOR ALL PLAYERS
+        onValue(allPlayersRef, (snapshot) => {
+
+            players = snapshot.val() || {};
+
+            status.textContent =
+                "Connected! Players online: " +
+                Object.keys(players).length;
+
+            drawGame();
         });
 
-        // Canvas Rendering setup
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        // DRAW GAME
+        function drawGame() {
 
-        // Listen to ALL players in real-time
-        const allPlayersRef = ref(db, 'players');
-        onValue(allPlayersRef, (snapshot) => {
-            const players = snapshot.val() || {};
-            
-            // Clear screen
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Draw every connected player
-            for (let id in players) {
+            for (const id in players) {
+
                 const p = players[id];
-                ctx.fillStyle = p.color || '#fff';
+
+                ctx.fillStyle = p.color || "#ffffff";
+
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
                 ctx.fill();
-                
-                // Label current player
-                if (id === myId) {
-                    ctx.fillStyle = '#fff';
-                    ctx.font = '12px sans-serif';
-                    ctx.fillText("You", p.x - 10, p.y - 20);
-                }
+
+                // PLAYER LABEL
+                ctx.fillStyle = "white";
+                ctx.font = "12px sans-serif";
+                ctx.textAlign = "center";
+
+                ctx.fillText(
+                    id === myId ? "You" : "Player",
+                    p.x,
+                    p.y - 22
+                );
             }
+        }
+
+        // MOVE PLAYER
+        window.addEventListener("keydown", async (e) => {
+
+            const keys = [
+                "ArrowUp",
+                "ArrowDown",
+                "ArrowLeft",
+                "ArrowRight"
+            ];
+
+            if (!keys.includes(e.key)) return;
+
+            e.preventDefault();
+
+            const speed = 10;
+
+            if (e.key === "ArrowUp") {
+                myPosition.y -= speed;
+            }
+
+            if (e.key === "ArrowDown") {
+                myPosition.y += speed;
+            }
+
+            if (e.key === "ArrowLeft") {
+                myPosition.x -= speed;
+            }
+
+            if (e.key === "ArrowRight") {
+                myPosition.x += speed;
+            }
+
+            // KEEP PLAYER INSIDE CANVAS
+            myPosition.x = Math.max(
+                15,
+                Math.min(canvas.width - 15, myPosition.x)
+            );
+
+            myPosition.y = Math.max(
+                15,
+                Math.min(canvas.height - 15, myPosition.y)
+            );
+
+            // UPDATE DATABASE
+            try {
+                await set(myRef, myPosition);
+            } catch (error) {
+                console.error("Movement update failed:", error);
+            }
+
         });
+
+        // REMOVE PLAYER WHEN LEAVING
+        window.addEventListener("pagehide", () => {
+            remove(myRef);
+        });
+
     </script>
+
 </body>
 </html>
